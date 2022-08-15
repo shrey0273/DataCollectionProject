@@ -6,6 +6,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 from warnings import warn
+from uuid import uuid4
 import time
 
 class Scraper:
@@ -13,7 +14,7 @@ class Scraper:
         self.driver = webdriver.Chrome()
         self.URL = 'https://coinmarketcap.com/'
         self.driver.get(self.URL)
-        self.data = {'price':[],'7d change':[],'circulating supply':[],'market cap':[],'volume':[]}
+        self.data = {'id':[],'uuid':[],'name':[],'icon':[],'rank':[],'24h £ range':[],'market cap':[]}
         self.page_no = 1
         self.buttons = self.driver.find_elements(By.CLASS_NAME,"chevron")
         print(len(self.buttons))
@@ -22,13 +23,13 @@ class Scraper:
 
     def removeIntro(self):
         delay = 10
-        for x in range(0,3):
-            
-            a = WebDriverWait(self.driver, delay).until(EC.presence_of_element_located((By.XPATH, '//*[@class="gv-footer"]')))
+        # for x in range(0,3):
+        a = WebDriverWait(self.driver, delay).until(EC.presence_of_element_located((By.XPATH, '//*[@class="gv-footer"]')))
 
-            next_button = a.find_element(By.TAG_NAME,'button')
-            next_button.click()
-    
+        next_button = a.find_element(By.TAG_NAME,'button')
+        next_button.click()
+
+
     def smoothScrolling(self, proportion, rate):
         total_height = int(self.driver.execute_script("return document.body.scrollHeight"))
         for i in range(1, round(total_height*proportion), rate):
@@ -37,7 +38,7 @@ class Scraper:
     def toPage(self,number):
         self.driver.get(self.URL+"?page="+str(number))
 
-    def category(self,category):
+    def toCategory(self,category):
         self.page_no = 1
         nextbutton = self.driver.find_element(by = By.LINK_TEXT,value=category)
         action = ActionChains(self.driver)
@@ -49,21 +50,54 @@ class Scraper:
     def stopScraping(self):
         self.driver.quit()
     
-    def collectBasicInfo(self,finalpage):
-        for page in range(1,finalpage+1):
+    def collectAllInfo(self,initialpage,finalpage):
+        for page in range(initialpage,finalpage+1):
             self.toPage(page)
             if page!=1 and self.driver.current_url==self.URL:
                 warn("Exceeded actual number of pages")
                 finalpage = page-1
                 break
             else:
-                self.links.update(self.collectLinks())
-        print(len(self.links))
+                self.links.update(self.collectPageLinks())
+        print('it is',len(self.links))
 
         for link in self.links:
-            pass
+            print("HI!")
+            self.driver.get(self.URL+link)
+            self.collectCryptoInfo()
+    
+    def collectCryptoInfo(self): 
+        ##collect from a particular crypto's page
+        html = self.driver.page_source
+        soup = BeautifulSoup(html, 'html.parser')
 
-    def collectLinks(self):
+        name = soup.find(name = 'h1', attrs = {'class':'priceHeading'}).text[0:-6]
+        self.data['name'].append(name)
+
+        id = name.lower().replace(' ','_')
+        self.data['id'].append(id)
+
+        icon_location = soup.find(name = 'div', attrs = {'class':'sc-16r8icm-0 gpRPnR nameHeader'})
+        icon = icon_location.find(name = 'img')['src']
+        self.data['icon'].append(icon)
+
+        rank = int(soup.find(name = 'div', attrs = {'class':'namePill namePillPrimary'}).text[6:]) #ignores word "rank "
+        self.data['rank'].append(rank)
+
+        price_locations = soup.find(name = 'div', attrs = {'class':'sc-16r8icm-0 kjciSH sliderSection'}).find_all(name = 'span',attrs = {'class':'n78udj-5 dBJPYV'})
+        price_range = []
+        for location in price_locations:
+            price_range.append(location.findChild(name = 'span').text)
+        self.data['24h £ range'].append(tuple(price_range))
+        
+        marketcap_location = soup.find(name = 'div', attrs = {'class':'statsBlock'}).find(name = 'div', attrs = {'class':'statsValue'})
+        self.data['market cap'].append(marketcap_location.text)
+
+        self.data['uuid'].append(uuid4())
+
+
+    def collectPageLinks(self): 
+        ##data hasn't loaded for all cryptos, so quickest route is to just collect links
         links = set()
         html = self.driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
@@ -72,7 +106,7 @@ class Scraper:
 
         for location in locations:
             link = location.attrs["href"]
-            link_bd = link.split('/')[1:4]
+            link_bd = link.split('/')[1:4] #we're only looking for direct children of the category
             link_bd[2] = ""
             link = "/".join(link_bd)
             links.add(link)
@@ -91,9 +125,13 @@ class Scraper:
         # print(len(trows))
 
     def doStuff(self):
+        
         self.removeIntro()
+        
+        print("Coming!")
         time.sleep(2)
-        self.collectBasicInfo(5)
+        self.collectAllInfo(1,1)
+        
 
 if __name__ == "__main__":
     MyScraper = Scraper()
