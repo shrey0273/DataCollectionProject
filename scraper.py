@@ -7,7 +7,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 from warnings import warn
 from uuid import uuid4
-import time
+import time, json, os
 
 class Scraper:
     def __init__(self):
@@ -16,9 +16,6 @@ class Scraper:
         self.driver.get(self.URL)
         self.data = {'id':[],'uuid':[],'name':[],'icon':[],'rank':[],'24h £ range':[],'market cap':[]}
         self.page_no = 1
-        self.buttons = self.driver.find_elements(By.CLASS_NAME,"chevron")
-        print(len(self.buttons))
-        self.next_button = self.buttons[len(self.buttons)-1]
         self.links = set()
 
     def removeIntro(self):
@@ -50,7 +47,7 @@ class Scraper:
     def stopScraping(self):
         self.driver.quit()
     
-    def collectAllInfo(self,initialpage,finalpage):
+    def collectAllInfo(self,initialpage,finalpage,limit):
         for page in range(initialpage,finalpage+1):
             self.toPage(page)
             if page!=1 and self.driver.current_url==self.URL:
@@ -61,8 +58,9 @@ class Scraper:
                 self.links.update(self.collectPageLinks())
         print('it is',len(self.links))
 
-        for link in self.links:
-            print("HI!")
+        for count,link in enumerate(self.links):
+            if count>limit:
+                break
             self.driver.get(self.URL+link)
             self.collectCryptoInfo()
     
@@ -71,11 +69,12 @@ class Scraper:
         html = self.driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
 
-        name = soup.find(name = 'h1', attrs = {'class':'priceHeading'}).text[0:-6]
+        name_location = soup.find(name = 'h2', attrs = {'class':'sc-1q9q90x-0 jCInrl h1'})
+        name = name_location.text
         self.data['name'].append(name)
 
-        id = name.lower().replace(' ','_')
-        self.data['id'].append(id)
+        id = name_location.findChild().text
+        self.data['id'].append(id.lower())
 
         icon_location = soup.find(name = 'div', attrs = {'class':'sc-16r8icm-0 gpRPnR nameHeader'})
         icon = icon_location.find(name = 'img')['src']
@@ -89,12 +88,11 @@ class Scraper:
         for location in price_locations:
             price_range.append(location.findChild(name = 'span').text)
         self.data['24h £ range'].append(tuple(price_range))
-        
+
         marketcap_location = soup.find(name = 'div', attrs = {'class':'statsBlock'}).find(name = 'div', attrs = {'class':'statsValue'})
         self.data['market cap'].append(marketcap_location.text)
 
         self.data['uuid'].append(uuid4())
-
 
     def collectPageLinks(self): 
         ##data hasn't loaded for all cryptos, so quickest route is to just collect links
@@ -130,11 +128,31 @@ class Scraper:
         
         print("Coming!")
         time.sleep(2)
-        self.collectAllInfo(1,1)
-        
+        self.collectAllInfo(1,1,10)
 
 if __name__ == "__main__":
+
+    root_dir = os.path.abspath(os.curdir)
+    if not os.path.exists(root_dir):
+        os.mkdir(root_dir+"/raw_data")
+    
     MyScraper = Scraper()
     MyScraper.doStuff()
     input("")
     MyScraper.stopScraping()
+
+    for i,crypto in enumerate(MyScraper.data['id']):
+        current_dir = os.path.join(root_dir,"raw_data",crypto)
+        if not os.path.exists(current_dir):
+            os.mkdir(current_dir)
+        file = os.path.join(current_dir,'data.json')
+        with open(file,'w') as f:
+            json.dump({
+                'id':crypto,
+                'uuid':str(MyScraper.data['uuid'][i]),
+                'name':MyScraper.data['name'][i],
+                'icon':MyScraper.data['icon'][i],
+                'rank':MyScraper.data['rank'][i],
+                '24h £ range':MyScraper.data['24h £ range'][i],
+                'market cap':MyScraper.data['market cap'][i]
+            }, f)
