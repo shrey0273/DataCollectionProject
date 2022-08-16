@@ -121,6 +121,29 @@ class Scraper:
         #     [2,3,6,7,8,9]
         #     print(tcols[2].find('a')
         # print(len(trows))
+    
+    def saveData(self):
+    
+        root_dir = os.path.abspath(os.curdir)
+        if not os.path.exists(root_dir):
+            os.mkdir(root_dir+"/raw_data")
+        
+        for i, crypto in enumerate(self.data['id']):
+            current_dir = os.path.join(root_dir,"raw_data",crypto)
+            if not os.path.exists(current_dir):
+                os.mkdir(current_dir)
+            file = os.path.join(current_dir,'data.json')
+            with open(file,'w') as f:
+                json.dump({
+                    'id':crypto,
+                    'uuid':str(self.data['uuid'][i]),
+                    'name':self.data['name'][i],
+                    'icon':self.data['icon'][i],
+                    'rank':self.data['rank'][i],
+                    '24h £ range':self.data['24h £ range'][i],
+                    'market cap':self.data['market cap'][i]
+                }, f)
+        
 
     def doStuff(self):
         
@@ -131,28 +154,9 @@ class Scraper:
         self.collectAllInfo(1,1,10)
 
 if __name__ == "__main__":
-
-    root_dir = os.path.abspath(os.curdir)
-    if not os.path.exists(root_dir):
-        os.mkdir(root_dir+"/raw_data")
     
     MyScraper = Scraper()
     MyScraper.doStuff()
     input("")
     MyScraper.stopScraping()
-
-    for i,crypto in enumerate(MyScraper.data['id']):
-        current_dir = os.path.join(root_dir,"raw_data",crypto)
-        if not os.path.exists(current_dir):
-            os.mkdir(current_dir)
-        file = os.path.join(current_dir,'data.json')
-        with open(file,'w') as f:
-            json.dump({
-                'id':crypto,
-                'uuid':str(MyScraper.data['uuid'][i]),
-                'name':MyScraper.data['name'][i],
-                'icon':MyScraper.data['icon'][i],
-                'rank':MyScraper.data['rank'][i],
-                '24h £ range':MyScraper.data['24h £ range'][i],
-                'market cap':MyScraper.data['market cap'][i]
-            }, f)
+    MyScraper.saveData()
