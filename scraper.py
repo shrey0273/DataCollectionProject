@@ -1,3 +1,5 @@
+import time, json, os
+from urllib import request
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -7,7 +9,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 from warnings import warn
 from uuid import uuid4
-import time, json, os
+
 
 class Scraper:
     def __init__(self):
@@ -48,6 +50,7 @@ class Scraper:
         self.driver.quit()
     
     def collectAllInfo(self,initialpage,finalpage,limit):
+        #collects links from all required pages
         for page in range(initialpage,finalpage+1):
             self.toPage(page)
             if page!=1 and self.driver.current_url==self.URL:
@@ -56,8 +59,8 @@ class Scraper:
                 break
             else:
                 self.links.update(self.collectPageLinks())
-        print('it is',len(self.links))
-
+        
+        #collects info from the fixed number of pages
         for count,link in enumerate(self.links):
             if count>limit:
                 break
@@ -65,7 +68,7 @@ class Scraper:
             self.collectCryptoInfo()
     
     def collectCryptoInfo(self): 
-        ##collect from a particular crypto's page
+        ##collect info from a particular crypto's page
         html = self.driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -123,40 +126,43 @@ class Scraper:
         # print(len(trows))
     
     def saveData(self):
-    
+        
         root_dir = os.path.abspath(os.curdir)
         if not os.path.exists(root_dir):
             os.mkdir(root_dir+"/raw_data")
         
         for i, crypto in enumerate(self.data['id']):
             current_dir = os.path.join(root_dir,"raw_data",crypto)
+            img_dir = os.path.join(current_dir,"images")
             if not os.path.exists(current_dir):
                 os.mkdir(current_dir)
+            if not os.path.exists(img_dir):
+                os.mkdir(img_dir)
+            
             file = os.path.join(current_dir,'data.json')
+            icon_url = self.data['icon'][i]
+
             with open(file,'w') as f:
                 json.dump({
                     'id':crypto,
                     'uuid':str(self.data['uuid'][i]),
                     'name':self.data['name'][i],
-                    'icon':self.data['icon'][i],
+                    'icon':icon_url,
                     'rank':self.data['rank'][i],
                     '24h £ range':self.data['24h £ range'][i],
                     'market cap':self.data['market cap'][i]
                 }, f)
-        
+            
+            request.urlretrieve(icon_url, os.path.join(img_dir,crypto+".png"))
+
 
     def doStuff(self):
-        
         self.removeIntro()
-        
-        print("Coming!")
-        time.sleep(2)
         self.collectAllInfo(1,1,10)
 
 if __name__ == "__main__":
     
     MyScraper = Scraper()
     MyScraper.doStuff()
-    input("")
     MyScraper.stopScraping()
     MyScraper.saveData()
