@@ -1,14 +1,14 @@
-import time, json, os
-from urllib import request
+import json, os
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
-from bs4 import BeautifulSoup
-from warnings import warn
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from urllib import request
 from uuid import uuid4
+from warnings import warn
 
 
 class Scraper:
@@ -19,8 +19,9 @@ class Scraper:
         self.data = {'id':[],'uuid':[],'name':[],'icon':[],'rank':[],'24h £ range':[],'market cap':[]}
         self.page_no = 1
         self.links = set()
+        self.__removeIntro()
 
-    def removeIntro(self):
+    def __removeIntro(self):
         delay = 10
         # for x in range(0,3):
         a = WebDriverWait(self.driver, delay).until(EC.presence_of_element_located((By.XPATH, '//*[@class="gv-footer"]')))
@@ -34,7 +35,7 @@ class Scraper:
         for i in range(1, round(total_height*proportion), rate):
             self.driver.execute_script("window.scrollTo(0, {});".format(i))
 
-    def toPage(self,number):
+    def __toPage(self,number):
         self.driver.get(self.URL+"?page="+str(number))
 
     def toCategory(self,category):
@@ -52,22 +53,21 @@ class Scraper:
     def collectAllInfo(self,initialpage,finalpage,limit):
         #collects links from all required pages
         for page in range(initialpage,finalpage+1):
-            self.toPage(page)
+            self.__toPage(page)
             if page!=1 and self.driver.current_url==self.URL:
                 warn("Exceeded actual number of pages")
-                finalpage = page-1
                 break
             else:
-                self.links.update(self.collectPageLinks())
+                self.links.update(self.__collectPageLinks())
         
         #collects info from the fixed number of pages
         for count,link in enumerate(self.links):
-            if count>limit:
+            if count>=limit:
                 break
             self.driver.get(self.URL+link)
-            self.collectCryptoInfo()
+            self.__collectCryptoInfo()
     
-    def collectCryptoInfo(self): 
+    def __collectCryptoInfo(self): 
         ##collect info from a particular crypto's page
         html = self.driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
@@ -97,7 +97,7 @@ class Scraper:
 
         self.data['uuid'].append(uuid4())
 
-    def collectPageLinks(self): 
+    def __collectPageLinks(self): 
         ##data hasn't loaded for all cryptos, so quickest route is to just collect links
         links = set()
         html = self.driver.page_source
@@ -125,7 +125,7 @@ class Scraper:
         #     print(tcols[2].find('a')
         # print(len(trows))
     
-    def saveData(self):
+    def saveDataLocally(self):
         
         root_dir = os.path.abspath(os.curdir)
         if not os.path.exists(root_dir):
@@ -156,13 +156,9 @@ class Scraper:
             request.urlretrieve(icon_url, os.path.join(img_dir,crypto+".png"))
 
 
-    def doStuff(self):
-        self.removeIntro()
-        self.collectAllInfo(1,1,10)
-
 if __name__ == "__main__":
     
     MyScraper = Scraper()
-    MyScraper.doStuff()
+    MyScraper.collectAllInfo(1,1,10)
     MyScraper.stopScraping()
-    MyScraper.saveData()
+    MyScraper.saveDataLocally()
